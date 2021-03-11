@@ -72,8 +72,8 @@ squeue -u mstudiva
 # double check you have the same number of files as samples
 ll *.counts | wc -l
 
-# combines all results into a single .txt
-cat *.counts > counts.txt
+# combines all results into a single horizontal .txt
+paste *.counts > counts.txt
 
 #------------------------------
 # scp .txt files (align rate and counts) to local machine, then build spreadsheet with all samples as columns
