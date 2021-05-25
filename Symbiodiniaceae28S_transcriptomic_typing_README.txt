@@ -3,12 +3,12 @@
 # for use on the FAU KoKo HPC
 
 # log onto cluster
-ssh mstudiva@koko-login.hpc.fau.edu
+ssh username@koko-login.hpc.fau.edu
 # enter FAU password
 
 #------------------------------
 # BEFORE STARTING, replace, in this whole file:
-#	- mstudiva with your KoKo user name
+#	- username with your KoKo user name
 
 # The idea is to copy the chunks separated by empty lines below and paste them into your cluster terminal window consecutively.
 
@@ -19,10 +19,10 @@ ssh mstudiva@koko-login.hpc.fau.edu
 # create a directory in the desired location and temporarily move all your .fq (or .fastq) files there
 mkdir zoox
 cd zoox
-mv ../backup/*.fq .
+mv ~/path/to/directory/*.fq .
 
 # from your local machine, scp the combined Symbiodiniaceae 28S genes fasta to the HPC
-scp 28S.fasta mstudiva@koko-login.hpc.fau.edu:~/path/to/directory/.
+scp 28S.fasta username@koko-login.hpc.fau.edu:~/path/to/directory/.
 
 #------------------------------
 # then login and navigate to the directory
@@ -38,17 +38,17 @@ launcher_creator.py -j align -n align -t 6:00:00 -q shortq7
 sbatch align.slurm
 
 # check on the status of the job
-squeue -u mstudiva
+squeue -u username
 
 # double check you have the same number of files as samples
-ll *.fq.bam | wc -l
+ll *.bam | wc -l
 
 # once finished, rename the job error output containing alignment rates to a .txt file
-mv align.e237109 alignrate.txt
+mv align.e####### alignrate.txt
 nano alignrate.txt
 
 # move the .fq files back to the original directory
-mv *.fq ../backup/
+mv *.fq ~/path/to/directory/
 
 # lists all the .bam files, then applies the sort command
 ls *bam | perl -pe 's/(\S+)/samtools sort -o $1.sort $1/' >sort
@@ -56,7 +56,7 @@ launcher_creator.py -j sort -n sort -t 6:00:00 -q shortq7
 sbatch sort.slurm
 
 # check on the status of the job
-squeue -u mstudiva
+squeue -u username
 
 # double check you have the same number of files as samples
 ll *.sort | wc -l
@@ -67,7 +67,7 @@ launcher_creator.py -j count -n count -t 6:00:00 -q shortq7
 sbatch count.slurm
 
 # check on the status of the job
-squeue -u mstudiva
+squeue -u username
 
 # double check you have the same number of files as samples
 ll *.counts | wc -l
@@ -77,4 +77,4 @@ paste *.counts > counts.txt
 
 #------------------------------
 # scp .txt files (align rate and counts) to local machine, then build spreadsheet with all samples as columns
-scp mstudiva@koko-login.hpc.fau.edu:~/path/to/HPC/directory/*.txt .
+scp username@koko-login.hpc.fau.edu:~/path/to/HPC/directory/*.txt .
