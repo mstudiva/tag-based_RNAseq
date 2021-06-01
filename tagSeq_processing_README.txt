@@ -163,17 +163,19 @@ sbatch count_trim.slurm
 #------------------------------
 # download and format reference transcriptome:
 
-# there are already-annotated M. cavernosa and Cladocopium transcriptomes on github and Dropbox
+# Mcav/Cladocopium GitHub repository
 mkdir annotate
 cd annotate
-git clone https://github.com/mstudiva/Mcav-Cladocopium-Annotated-Transcriptome.git
-mv Mcav-Annotated-Transcriptome/* .
-rm -rf Mcav-Annotated-Transcriptome
 
+git clone https://github.com/mstudiva/Mcav-Cladocopium-Annotated-Transcriptome.git
 wget -O Mcavernosa_Cladocopium.fasta https://www.dropbox.com/s/4s093k2wzimavp8/Mcavernosa_Cladocopium.fasta
 
 cp ~/annotate/Mcavernosa_Cladocopium.fasta ~/db/
 cd db
+
+# Ofav/Durusdinium GitHub repository
+git clone https://github.com/mstudiva/Ofav-Durusdinium-Annotated-Transcriptome.git
+wget -O Ofaveolata_Durusdinium.fasta https://www.dropbox.com/s/be0snovtso4tw1q/Ofaveolata_Durusdinium.fasta
 
 # creating bowtie2 index for your transcriptome:
 echo 'bowtie2-build Mcavernosa_Cladocopium.fasta Mcavernosa_Cladocopium' > btb
