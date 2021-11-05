@@ -1,6 +1,7 @@
-username# Tag-based RNA-seq reads processing pipeline, version May 10, 2021
+# Tag-based RNA-seq reads processing pipeline, version November 4, 2021
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com)
 # for use on the FAU KoKo HPC
+
 
 #------------------------------
 # BEFORE STARTING, replace, in this whole file:
@@ -13,7 +14,7 @@ username# Tag-based RNA-seq reads processing pipeline, version May 10, 2021
 
 # log onto cluster
 ssh username@koko-login.hpc.fau.edu
-# enter FAU password and accept the Duo Mobile prompt on your phone
+
 
 #------------------------------
 # installing RNA-seq scripts and setting up the workspace
@@ -163,49 +164,88 @@ sbatch count_trim.slurm
 #------------------------------
 # download and format reference transcriptome:
 
-# Mcav/Cladocopium GitHub repository
 mkdir annotate
 cd annotate
 
+# Mcav/Cladocopium GitHub repository
 git clone https://github.com/mstudiva/Mcav-Cladocopium-Annotated-Transcriptome.git
-wget -O Mcavernosa_Cladocopium.fasta https://www.dropbox.com/s/4s093k2wzimavp8/Mcavernosa_Cladocopium.fasta
-
-cp ~/annotate/Mcavernosa_Cladocopium.fasta ~/db/
-cd db
+wget -O Mcavernosa.fasta https://www.dropbox.com/s/7xhsxyor9tctvjh/Mcavernosa.fasta
+wget -O Cladocopium.fasta https://www.dropbox.com/s/tzewrhyudxqxaus/Cladocopium.fasta
 
 # Ofav/Durusdinium GitHub repository
 git clone https://github.com/mstudiva/Ofav-Durusdinium-Annotated-Transcriptome.git
-wget -O Ofaveolata_Durusdinium.fasta https://www.dropbox.com/s/be0snovtso4tw1q/Ofaveolata_Durusdinium.fasta
+wget -O Ofaveolata.fasta https://www.dropbox.com/s/f22bzz8eo2qxop2/Ofaveolata.fasta
+wget -O Durusdinium.fasta https://www.dropbox.com/s/ugz8236mkrtln2n/Durusdinium.fasta
 
 # creating bowtie2 index for your transcriptome:
-echo 'bowtie2-build Mcavernosa_Cladocopium.fasta Mcavernosa_Cladocopium' > btb
+echo 'bowtie2-build Mcavernosa.fasta Mcavernosa' > btb
+echo 'bowtie2-build Cladocopium.fasta Cladocopium' >> btb
+echo 'bowtie2-build Ofaveolata.fasta Ofaveolata' >> btb
+echo 'bowtie2-build Durusdinium.fasta Durusdinium' >> btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e email@gmail.com
 sbatch btb.slurm
 
-#------------------------------
-# mapping reads to the transcriptome with bowtie2
+# copy all transcriptome .fasta files to db/
 
-# creating a list of mapping commands, one per reads file:
-srun tagseq_bowtie2map.pl "trim$" ~/db/Mcavernosa_Cladocopium > maps
-# If you have a file named count_trim, you need to edit maps to remove a line
-nano maps
-# find the line with count_trim, then Ctrl+K to cut, then save
-launcher_creator.py -j maps -n maps -q shortq7 -t 6:00:00 -e email@gmail.com
+#------------------------------
+# mapping reads to transcriptomes with bowtie2
+
+# if working with split coral/symbiont transcriptomes, need to run FIVE rounds of mapping: 1) all reads to symbiont, 2) remaining reads to coral, 3) mapped coral reads to coral (again, for alignment rate counts), 4) symbiont reads to coral, and 5) remaining symbiont reads to symbiont
+
+mkdir symbionts
+mkdir junk
+
+# maps reads to symbiont reference first, and splits symbiont reads (.sym) to alternate subdirectory
+# outputs .host files of remaining reads for coral mapping
+tagseq_bowtie2_launcher.py -g ~/db/Cladocopium -f .trim -n maps --split -u host -a sym --aldir symbionts --launcher -e email@gmail.com
 sbatch maps.slurm
 
-# how is the job?
-squeue -u username
+# delete the .sam files since the symbiont reads need further mapping to clean up conserved genes
+rm *.sam
 
-# complete! I got a bunch of large .sam files.
-ll
+# conduct mapping on coral reads (.host files) to coral reference
+# outputs .host.sam files for coral gene counts, and .host.clean files for coral alignment rates
+tagseq_bowtie2_launcher.py -g ~/db/Mcavernosa -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e email@gmail.com
+sbatch maps2.slurm
 
-# double check you have the same number of files as samples
-ll *.trim.sam | wc -l
+# delete the .sam files since you will generate them later from clean coral reads
+rm *.host.sam
 
-# what is the mapping efficiency? This will find relevant lines in the "job output" file
-# that was created while the mapping was running
-grep "overall alignment rate" maps.e####### > alignrate.txt
-nano alignrate.txt
+# conduct second round of mapping on coral reads (.host.clean files) to coral reference, just for alignment rate calculations
+tagseq_bowtie2_launcher.py -g ~/db/Mcavernosa -f .host.clean -n maps3 --launcher -e email@gmail.com
+sbatch maps3.slurm
+
+cd symbionts/
+mkdir junk
+
+# removing genes from symbiont reads that align to both coral/symbiont references by conducting another round of mapping on .sym files
+# outputs .clean files of true symbiont reads for one final rounds of symbiont mapping
+tagseq_bowtie2_launcher.py -g ~/db/Mcavernosa -f .sym -n maps4 --split -u clean -a host --aldir junk --launcher -e email@gmail.com
+sbatch maps4.slurm
+
+# delete the .sam files from the zoox mapping to coral reference
+rm *.sam
+
+# conduct final round of mapping on true symbiont reads (.sym.clean files) to symbiont reference
+# outputs .sym.clean.sam files for symbiont counts
+tagseq_bowtie2_launcher.py -g ~/db/Cladocopium -f .clean -n maps5 --launcher -e email@gmail.com
+sbatch maps5.slurm
+
+mv *.sym.clean.sam ..
+mv *.sym.clean ..
+cd ..
+
+# double check you have the same number of host and symbiont .sam files as samples
+ll *.host.clean.sam | wc -l
+ll *.sym.clean.sam | wc -l
+
+# to count the number of mapped host and symbiont reads for mapping efficiency
+# calculate mapping efficiency from these values compared to trimmed reads in Excel
+# remember to delete the results from the .sam files
+echo "countreads_host.pl > countreads_host.txt" > count_align
+echo "countreads_sym.pl > countreads_sym.txt" >> count_align
+launcher_creator.py -j count_align -n count_align -q shortq7 -t 6:00:00 -e email@gmail.com
+sbatch count_align.slurm
 
 #------------------------------
 # generating read-counts-per gene: (again, creating a job file to do it simultaneously for all)
@@ -213,30 +253,30 @@ nano alignrate.txt
 # NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file
 # and genes. Typically, each gene is represented by several contigs in the transcriptome.
 # Mcavernosa_Cladocopium_seq2iso.tab is in your annotate directory
-cp ~/annotate/Mcavernosa_Cladocopium_seq2iso.tab ~/db/
+cp ~/annotate/Cladocopium_seq2iso.tab ~/db/
 
-samcount_launch_bt2.pl '\.sam$' /home/username/db/Mcavernosa_Cladocopium_seq2iso.tab > sc
+samcount_launch_bt2.pl '\.host.clean.sam$' /home/username/db/Mcavernosa_seq2iso.tab > sc
+samcount_launch_bt2.pl '\.sym.clean.sam$' /home/username/db/Cladocopium_seq2iso.tab >> sc
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e email@gmail.com
 sbatch sc.slurm
 
-# check on the job
-squeue -u username
-
-# done! a bunch of .counts files were produced.
-ll
-
-# double check you have the same number of files as samples
-ll *.trim.sam.counts | wc -l
+# double check you have the same number of files as samples (double if you have split coral/symbiont reads)
+ll *.counts | wc -l
 
 # assembling them all into a single table:
-srun expression_compiler.pl *.sam.counts > allc.txt
+srun expression_compiler.pl *.host.clean.sam.counts > allc_host.txt
+srun expression_compiler.pl *.sym.clean.sam.counts > allc_sym.txt
 
-# how does the allc.txt look?
-head allc.txt
+# how do the files look?
+head allc_host.txt
+head allc_sym.txt
 
 # let's remove those annoying chains of extensions from sample names:
-cat allc.txt | perl -pe 's/\.trim\.sam\.counts//g' >allcounts.txt
-head allcounts.txt
+cat allc_host.txt | perl -pe 's/\.trim\.host\.clean\.sam\.counts//g'>allcounts_host.txt
+cat allc_sym.txt | perl -pe 's/\.trim\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
+
+head allcounts_host.txt
+head allcounts_sym.txt
 
 # display full path to where you were doing all this:
 pwd
