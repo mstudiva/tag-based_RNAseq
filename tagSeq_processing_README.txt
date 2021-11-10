@@ -177,6 +177,9 @@ git clone https://github.com/mstudiva/Ofav-Durusdinium-Annotated-Transcriptome.g
 wget -O Ofaveolata.fasta https://www.dropbox.com/s/f22bzz8eo2qxop2/Ofaveolata.fasta
 wget -O Durusdinium.fasta https://www.dropbox.com/s/ugz8236mkrtln2n/Durusdinium.fasta
 
+# copy all transcriptome .fasta files to db/
+cd db/
+
 # creating bowtie2 index for your transcriptome:
 echo 'bowtie2-build Mcavernosa.fasta Mcavernosa' > btb
 echo 'bowtie2-build Cladocopium.fasta Cladocopium' >> btb
@@ -185,7 +188,6 @@ echo 'bowtie2-build Durusdinium.fasta Durusdinium' >> btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e email@gmail.com
 sbatch btb.slurm
 
-# copy all transcriptome .fasta files to db/
 
 #------------------------------
 # mapping reads to transcriptomes with bowtie2
