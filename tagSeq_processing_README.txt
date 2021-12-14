@@ -5,15 +5,15 @@
 
 #------------------------------
 # BEFORE STARTING, replace, in this whole file:
-#	- email@gmail.com by your actual email;
-#	- username with your KoKo user name.
+#	- studivanms@gmail.com by your actual email;
+#	- mstudiva with your KoKo user name.
 
 # The idea is to copy the chunks separated by empty lines below and paste them into your cluster terminal window consecutively.
 
 # The lines beginning with hash marks (#) are explanations and additional instructions – please make sure to read them before copy-pasting.
 
 # log onto cluster
-ssh username@koko-login.hpc.fau.edu
+ssh mstudiva@koko-login.hpc.fau.edu
 
 
 #------------------------------
@@ -30,7 +30,7 @@ mkdir bin
 cd bin
 
 # clone github repository
-git clone https://github.com/z0on/tag-based_RNAseq.git
+git clone https://github.com/mstudiva/tag-based_RNAseq.git
 
 # move files from subdir tag-based_RNAseq-master to bin/:
 mv tag-based_RNAseq/* .
@@ -40,13 +40,6 @@ rm -rf tag-based_RNAseq
 
 # remove the TACC version of launcher_creator.py from the bin directory (preinstalled on KoKo)
 rm launcher_creator.py
-
-# clone github repository with modified scripts for use with M. cavernosa/Cladocopium spp. and Eli Meyer's library prep
-git clone https://github.com/mstudiva/Transcriptional-plasticity-mesophotic-Mcav.git
-
-# move files from subdirectory and delete empty subdirectory
-mv tagseq-modified-scripts/* .
-rm -rf tagseq-modified-scripts
 
 # If you have not previously, download BaseSpaceCLI
 wget "https://api.bintray.com/content/basespace/BaseSpaceCLI-EarlyAccess-BIN/latest/\$latest/amd64-linux/bs?bt_package=latest" -O $HOME/bin/bs
@@ -78,7 +71,7 @@ echo 'rmdir mergeTemp' >> downloadReads.sh
 
 chmod +x downloadReads.sh
 
-launcher_creator.py -b 'srun downloadReads.sh' -n downloadReads -q shortq7 -t 06:00:00 -e email@gmail.com
+launcher_creator.py -b 'srun downloadReads.sh' -n downloadReads -q shortq7 -t 06:00:00 -e studivanms@gmail.com
 sbatch --mem=200GB downloadReads.slurm
 
 #-------------------------------
@@ -92,7 +85,7 @@ ll *.fastq | wc -l
 # ngs_concat.pl commonTextInFastqFilenames  "FilenameTextImmediatelyBeforeSampleID(.+)FilenameTextImmediatelyAfterSampleID"
 
 echo "ngs_concat.pl 'Text-' '(.+)-\d'" > concat
-launcher_creator.py -j concat -n concat -q shortq7 -t 6:00:00 -e email@gmail.com
+launcher_creator.py -j concat -n concat -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch concat.slurm
 
 # this one-liner replaces any sample numbers with the three digit version
@@ -110,7 +103,7 @@ ll *.fq | wc -l
 
 # to count the number of reads in all samples
 echo "countreads_raw.pl > countreads_raw.txt" > count
-launcher_creator.py -j count -n count -q shortq7 -t 6:00:00 -e email@gmail.com
+launcher_creator.py -j count -n count -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count.slurm
 
 #------------------------------
@@ -134,7 +127,7 @@ done
 sbatch -o trim.o%j -e trim.e%j --mem=200GB trim.sh
 
 # how the job is doing?
-squeue -u username
+squeue -u mstudiva
 
 # double check you have the same number of files as samples
 ll *.trim | wc -l
@@ -158,48 +151,36 @@ mv *.fq ~/rawReads/
 
 # to count the number of reads in trimmed samples
 echo "countreads_trim.pl > countreads_trim.txt" > count_trim
-launcher_creator.py -j count_trim -n count_trim -q shortq7 -t 6:00:00 -e email@gmail.com
+launcher_creator.py -j count_trim -n count_trim -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count_trim.slurm
 
 #------------------------------
 # download and format reference transcriptome:
 
-mkdir annotate
-cd annotate
+mkdir ~/db/
+cd ~/db/
+# copy your transcriptome .fasta file(s) to db/
 
-# Mcav/Cladocopium GitHub repository
-git clone https://github.com/mstudiva/Mcav-Cladocopium-Annotated-Transcriptome.git
-wget -O Mcavernosa.fasta https://www.dropbox.com/s/7xhsxyor9tctvjh/Mcavernosa.fasta
-wget -O Cladocopium.fasta https://www.dropbox.com/s/tzewrhyudxqxaus/Cladocopium.fasta
-
-# Ofav/Durusdinium GitHub repository
-git clone https://github.com/mstudiva/Ofav-Durusdinium-Annotated-Transcriptome.git
-wget -O Ofaveolata.fasta https://www.dropbox.com/s/f22bzz8eo2qxop2/Ofaveolata.fasta
-wget -O Durusdinium.fasta https://www.dropbox.com/s/ugz8236mkrtln2n/Durusdinium.fasta
-
-# copy all transcriptome .fasta files to db/
-cd db/
-
-# creating bowtie2 index for your transcriptome:
-echo 'bowtie2-build Mcavernosa.fasta Mcavernosa' > btb
-echo 'bowtie2-build Cladocopium.fasta Cladocopium' >> btb
-echo 'bowtie2-build Ofaveolata.fasta Ofaveolata' >> btb
-echo 'bowtie2-build Durusdinium.fasta Durusdinium' >> btb
-launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e email@gmail.com
+# creating bowtie2 index for transcriptome(s)
+# replace 'Host' and 'Symbiont' with your respective filenames
+echo 'bowtie2-build Host.fasta Host' > btb
+echo 'bowtie2-build Symbiont.fasta Symbiont' >> btb
+launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch btb.slurm
 
 
 #------------------------------
-# mapping reads to transcriptomes with bowtie2
+## Mapping reads to host/symbiont transcriptomes with bowtie2
 
-# if working with split coral/symbiont transcriptomes, need to run FIVE rounds of mapping: 1) all reads to symbiont, 2) remaining reads to coral, 3) mapped coral reads to coral (again, for alignment rate counts), 4) symbiont reads to coral, and 5) remaining symbiont reads to symbiont
+# if working with split host/symbiont transcriptomes, need to run FIVE rounds of mapping: 1) all reads to symbiont, 2) remaining reads to coral, 3) mapped coral reads to coral (again, for alignment rate counts), 4) symbiont reads to coral, and 5) remaining symbiont reads to symbiont
 
 mkdir symbionts
 mkdir junk
 
+# replace 'Symbionts' with your symbiont filename, and 'Host' with your host filename
 # maps reads to symbiont reference first, and splits symbiont reads (.sym) to alternate subdirectory
 # outputs .host files of remaining reads for coral mapping
-tagseq_bowtie2_launcher.py -g ~/db/Cladocopium -f .trim -n maps --split -u host -a sym --aldir symbionts --launcher -e email@gmail.com
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u host -a sym --aldir symbionts --launcher -e studivanms@gmail.com
 sbatch maps.slurm
 
 # delete the .sam files since the symbiont reads need further mapping to clean up conserved genes
@@ -207,14 +188,14 @@ rm *.sam
 
 # conduct mapping on coral reads (.host files) to coral reference
 # outputs .host.sam files for coral gene counts, and .host.clean files for coral alignment rates
-tagseq_bowtie2_launcher.py -g ~/db/Mcavernosa -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e email@gmail.com
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e studivanms@gmail.com
 sbatch maps2.slurm
 
 # delete the .sam files since you will generate them later from clean coral reads
 rm *.host.sam
 
 # conduct second round of mapping on coral reads (.host.clean files) to coral reference, just for alignment rate calculations
-tagseq_bowtie2_launcher.py -g ~/db/Mcavernosa -f .host.clean -n maps3 --launcher -e email@gmail.com
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .host.clean -n maps3 --launcher -e studivanms@gmail.com
 sbatch maps3.slurm
 
 cd symbionts/
@@ -222,7 +203,7 @@ mkdir junk
 
 # removing genes from symbiont reads that align to both coral/symbiont references by conducting another round of mapping on .sym files
 # outputs .clean files of true symbiont reads for one final rounds of symbiont mapping
-tagseq_bowtie2_launcher.py -g ~/db/Mcavernosa -f .sym -n maps4 --split -u clean -a host --aldir junk --launcher -e email@gmail.com
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps4 --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
 sbatch maps4.slurm
 
 # delete the .sam files from the zoox mapping to coral reference
@@ -230,7 +211,7 @@ rm *.sam
 
 # conduct final round of mapping on true symbiont reads (.sym.clean files) to symbiont reference
 # outputs .sym.clean.sam files for symbiont counts
-tagseq_bowtie2_launcher.py -g ~/db/Cladocopium -f .clean -n maps5 --launcher -e email@gmail.com
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .clean -n maps5 --launcher -e studivanms@gmail.com
 sbatch maps5.slurm
 
 mv *.sym.clean.sam ..
@@ -246,20 +227,34 @@ ll *.sym.clean.sam | wc -l
 # remember to delete the results from the .sam files
 echo "countreads_host.pl > countreads_host.txt" > count_align
 echo "countreads_sym.pl > countreads_sym.txt" >> count_align
-launcher_creator.py -j count_align -n count_align -q shortq7 -t 6:00:00 -e email@gmail.com
+launcher_creator.py -j count_align -n count_align -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count_align.slurm
+
+
+#------------------------------
+## OPTIONAL: Mapping paired-end reads to transcriptome with bowtie2
+
+# first need to create a template script containing the correct sequence of left, right, and output names (along with standard flags)
+# ex. "bowtie2 --local -x /mnt/beegfs/home/mstudiva/db/Host -1 R1_Host_1.fastq -2 R2_Host_1.fastq -S Host_1.fastq.sam --no-hd --no-sq --no-unal"
+launcher_creator.py -j bowtie.sh -n bowtie -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+sbatch bowtie.slurm
+
 
 #------------------------------
 # generating read-counts-per gene: (again, creating a job file to do it simultaneously for all)
 
-# NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file
-# and genes. Typically, each gene is represented by several contigs in the transcriptome.
-# Mcavernosa_Cladocopium_seq2iso.tab is in your annotate directory
-cp ~/annotate/Cladocopium_seq2iso.tab ~/db/
+# NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file and genes
+cp ~/annotate/Host_seq2iso.tab ~/db/
+cp ~/annotate/Symbiont_seq2iso.tab ~/db/
 
-samcount_launch_bt2.pl '\.host.clean.sam$' /home/username/db/Mcavernosa_seq2iso.tab > sc
-samcount_launch_bt2.pl '\.sym.clean.sam$' /home/username/db/Cladocopium_seq2iso.tab >> sc
-launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e email@gmail.com
+samcount_launch_bt2.pl '\.host.clean.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
+samcount_launch_bt2.pl '\.sym.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc
+launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+sbatch sc.slurm
+
+# OPTIONAL: For single-reference alignments
+samcount_launch_bt2.pl '\.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
+launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch sc.slurm
 
 # double check you have the same number of files as samples (double if you have split coral/symbiont reads)
@@ -269,6 +264,9 @@ ll *.counts | wc -l
 srun expression_compiler.pl *.host.clean.sam.counts > allc_host.txt
 srun expression_compiler.pl *.sym.clean.sam.counts > allc_sym.txt
 
+# OPTIONAL: For single-reference alignments
+srun expression_compiler.pl *.sam.counts > allc_host.txt
+
 # how do the files look?
 head allc_host.txt
 head allc_sym.txt
@@ -276,6 +274,9 @@ head allc_sym.txt
 # let's remove those annoying chains of extensions from sample names:
 cat allc_host.txt | perl -pe 's/\.trim\.host\.clean\.sam\.counts//g'>allcounts_host.txt
 cat allc_sym.txt | perl -pe 's/\.trim\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
+
+# OPTIONAL: For single-reference alignments
+cat allc_host.txt | perl -pe 's/\.sam\.counts//g'>allcounts_host.txt
 
 head allcounts_host.txt
 head allcounts_sym.txt
@@ -291,7 +292,7 @@ pwd
 
 # this copies all .txt files, including allcounts, allc, alignrate, read counts
 cd /path/to/local/directory
-scp username@koko-login.fau.edu:~/path/to/HPC/directory/*.txt .
+scp mstudiva@koko-login.fau.edu:~/path/to/HPC/directory/*.txt .
 
 # copy the file from KoKo using scp (in WinSCP, just paste the path you just copied into an appropriate slot (should be self-evident) and drag the allcounts.txt file to your local directory)
 
