@@ -232,12 +232,7 @@ sbatch count_align.slurm
 
 
 #------------------------------
-## OPTIONAL: Mapping paired-end reads to transcriptome with bowtie2
-
-# first need to create a template script containing the correct sequence of left, right, and output names (along with standard flags)
-# ex. "bowtie2 --local -x /mnt/beegfs/home/mstudiva/db/Host -1 R1_Host_1.fastq -2 R2_Host_1.fastq -S Host_1.fastq.sam --no-hd --no-sq --no-unal"
-launcher_creator.py -j bowtie.sh -n bowtie -q shortq7 -t 6:00:00 -e studivanms@gmail.com
-sbatch bowtie.slurm
+## OPTIONAL: For mapping paired-end reads, including to separate host/symbiont transcriptomes with bowtie2, follow the script bowtie2_pairedend_README.txt
 
 
 #------------------------------
@@ -277,6 +272,10 @@ cat allc_sym.txt | perl -pe 's/\.trim\.sym\.clean\.sam\.counts//g' >allcounts_sy
 
 # OPTIONAL: For single-reference alignments
 cat allc_host.txt | perl -pe 's/\.sam\.counts//g'>allcounts_host.txt
+
+# OPTIONAL: For paired-end alignments
+cat allc_host.txt | perl -pe 's/\.fastq\.host\.clean\.sam\.counts//g'>allcounts_host.txt
+cat allc_sym.txt | perl -pe 's/\.fastq\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
 
 head allcounts_host.txt
 head allcounts_sym.txt
