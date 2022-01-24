@@ -1,4 +1,4 @@
-# Tag-based RNA-seq reads processing pipeline, version November 4, 2021
+# Tag-based RNA-seq reads processing pipeline, version January 24, 2022
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com)
 # for use on the FAU KoKo HPC
 
@@ -172,54 +172,47 @@ sbatch btb.slurm
 #------------------------------
 ## Mapping reads to host/symbiont transcriptomes with bowtie2
 
-# if working with split host/symbiont transcriptomes, need to run FIVE rounds of mapping: 1) all reads to symbiont, 2) remaining reads to coral, 3) mapped coral reads to coral (again, for alignment rate counts), 4) symbiont reads to coral, and 5) remaining symbiont reads to symbiont
+# if working with split host/symbiont transcriptomes, need to run FOUR rounds of mapping: 1) all reads to symbiont, 2) remaining reads to host, 3) symbiont reads to host to remove conserved genes, and remaining symbiont reads to symbiont for final .sam files
 
 mkdir symbionts
 mkdir junk
 
 # replace 'Symbionts' with your symbiont filename, and 'Host' with your host filename
 # maps reads to symbiont reference first, and splits symbiont reads (.sym) to alternate subdirectory
-# outputs .host files of remaining reads for coral mapping
+# outputs .host files of remaining reads for host mapping
 tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u host -a sym --aldir symbionts --launcher -e studivanms@gmail.com
 sbatch maps.slurm
 
 # delete the .sam files since the symbiont reads need further mapping to clean up conserved genes
 rm *.sam
 
-# conduct mapping on coral reads (.host files) to coral reference
-# outputs .host.sam files for coral gene counts, and .host.clean files for coral alignment rates
+# conduct mapping on host reads (.host files) to host reference
+# outputs .host.sam files for host gene counts, and .host.clean files for host alignment rates
 tagseq_bowtie2_launcher.py -g ~/db/Host -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e studivanms@gmail.com
 sbatch maps2.slurm
-
-# delete the .sam files since you will generate them later from clean coral reads
-rm *.host.sam
-
-# conduct second round of mapping on coral reads (.host.clean files) to coral reference, just for alignment rate calculations
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .host.clean -n maps3 --launcher -e studivanms@gmail.com
-sbatch maps3.slurm
 
 cd symbionts/
 mkdir junk
 
-# removing genes from symbiont reads that align to both coral/symbiont references by conducting another round of mapping on .sym files
-# outputs .clean files of true symbiont reads for one final rounds of symbiont mapping
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps4 --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
-sbatch maps4.slurm
+# removing genes from symbiont reads that align to both host/symbiont references by conducting another round of mapping on .sym files
+# outputs sym.clean files for symbiont alignment rates
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps3 --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
+sbatch maps3.slurm
 
-# delete the .sam files from the zoox mapping to coral reference
+# delete the .sam files from the symbiont mapping to host
 rm *.sam
 
 # conduct final round of mapping on true symbiont reads (.sym.clean files) to symbiont reference
-# outputs .sym.clean.sam files for symbiont counts
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .clean -n maps5 --launcher -e studivanms@gmail.com
-sbatch maps5.slurm
+# outputs .sym.clean.sam files for symbiont gene counts
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .clean -n maps4 --launcher -e studivanms@gmail.com
+sbatch maps4.slurm
 
 mv *.sym.clean.sam ..
 mv *.sym.clean ..
 cd ..
 
 # double check you have the same number of host and symbiont .sam files as samples
-ll *.host.clean.sam | wc -l
+ll *.host.sam | wc -l
 ll *.sym.clean.sam | wc -l
 
 # to count the number of mapped host and symbiont reads for mapping efficiency
@@ -242,7 +235,7 @@ sbatch count_align.slurm
 cp ~/annotate/Host_seq2iso.tab ~/db/
 cp ~/annotate/Symbiont_seq2iso.tab ~/db/
 
-samcount_launch_bt2.pl '\.host.clean.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
+samcount_launch_bt2.pl '\.host.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
 samcount_launch_bt2.pl '\.sym.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch sc.slurm
@@ -252,11 +245,11 @@ samcount_launch_bt2.pl '\.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch sc.slurm
 
-# double check you have the same number of files as samples (double if you have split coral/symbiont reads)
+# double check you have the same number of files as samples (double if you have split host/symbiont reads)
 ll *.counts | wc -l
 
 # assembling them all into a single table:
-srun expression_compiler.pl *.host.clean.sam.counts > allc_host.txt
+srun expression_compiler.pl *.host.sam.counts > allc_host.txt
 srun expression_compiler.pl *.sym.clean.sam.counts > allc_sym.txt
 
 # OPTIONAL: For single-reference alignments
@@ -267,7 +260,7 @@ head allc_host.txt
 head allc_sym.txt
 
 # let's remove those annoying chains of extensions from sample names:
-cat allc_host.txt | perl -pe 's/\.trim\.host\.clean\.sam\.counts//g'>allcounts_host.txt
+cat allc_host.txt | perl -pe 's/\.trim\.host\.sam\.counts//g'>allcounts_host.txt
 cat allc_sym.txt | perl -pe 's/\.trim\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
 
 # OPTIONAL: For single-reference alignments
