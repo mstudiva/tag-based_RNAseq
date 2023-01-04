@@ -16,10 +16,10 @@ ssh username@koko-login.hpc.fau.edu
 
 #------------------------------
 # initial setup and file transfers
-# create a directory in the desired location and temporarily move all your .fq (or .fastq) files there
+# create a directory in the desired location and temporarily move all your .fastq files there
 mkdir zoox
 cd zoox
-mv ~/path/to/directory/*.fq .
+mv ~/path/to/directory/*.fastq .
 
 # from your local machine, scp the combined Symbiodiniaceae 28S genes fasta to the HPC
 scp 28S.fasta username@koko-login.hpc.fau.edu:~/path/to/directory/.
@@ -32,8 +32,8 @@ launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00
 sbatch btb.slurm
 
 #------------------------------
-# lists all the .fq files in the directory, then applies the bowtie2 and samtools commands to align and count 28S sequences to sample transcripts
-ls *fq | perl -pe 's/(\S+)/bowtie2 -U $1 -x Symbiodiniaceae_28S --threads 20 -q --score-min L,0,0 --very-sensitive --end-to-end \| samtools view -Sb -o $1.bam/' >align
+# lists all the .fastq files in the directory, then applies the bowtie2 and samtools commands to align and count 28S sequences to sample transcripts
+ls *fastq | perl -pe 's/(\S+)/bowtie2 -U $1 -x Symbiodiniaceae_28S --threads 20 -q --score-min L,0,0 --very-sensitive --end-to-end \| samtools view -Sb -o $1.bam/' >align
 launcher_creator.py -j align -n align -t 6:00:00 -q shortq7
 sbatch align.slurm
 

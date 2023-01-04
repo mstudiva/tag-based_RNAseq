@@ -1,4 +1,4 @@
-# Tag-based RNA-seq reads processing pipeline, version January 24, 2022
+# Tag-based RNA-seq reads processing pipeline, version December 11, 2022
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com)
 # for use on the FAU KoKo HPC
 
@@ -41,6 +41,12 @@ rm -rf tag-based_RNAseq
 # remove the TACC version of launcher_creator.py from the bin directory (preinstalled on KoKo)
 rm launcher_creator.py
 
+git clone https://github.com/bli25/RSEM_tutorial.git
+mv RSEM_tutorial/software/RSEM-1.2.25.tar.gz .
+tar -xzf RSEM-1.2.25.tar.gz
+cd RSEM-1.2.25
+make -j 8
+
 # If you have not previously, download BaseSpaceCLI
 wget "https://api.bintray.com/content/basespace/BaseSpaceCLI-EarlyAccess-BIN/latest/\$latest/amd64-linux/bs?bt_package=latest" -O $HOME/bin/bs
 
@@ -61,6 +67,12 @@ echo 'rmdir SA*' >>downloadReads.sh
 echo 'mkdir ../concatReads' >> downloadReads.sh
 echo 'cp *.gz ../concatReads' >> downloadReads.sh
 echo 'cd ../concatReads' >> downloadReads.sh
+echo 'for file in *.gz; do mv "${file}" "${file/-2/}"; done' >> downloadReads.sh
+# this removes the '-2' in filenames from duplicate samples for downstream merging
+
+echo "for file in *.fastq.gz; do echo $file | awk -F_ '{ printf("%03d_%s\n", $1, substr($0, index($0, $2))); }' | xargs -I{} mv $file {}; done" >> downloadReads.sh
+# this replaces any sample numbers with the three digit version
+
 echo 'mergeReads.sh -o mergeTemp' >> downloadReads.sh
 # -o is the directory to put output files in
 
@@ -74,35 +86,18 @@ chmod +x downloadReads.sh
 launcher_creator.py -b 'srun downloadReads.sh' -n downloadReads -q shortq7 -t 06:00:00 -e studivanms@gmail.com
 sbatch --mem=200GB downloadReads.slurm
 
-#-------------------------------
-# Concatenating sequence files
-
-# double check you have the number of files you should
+# double check you have the correct number of files as samples
 ll *.fastq | wc -l
 
-# If your samples are split across multiple files from different lanes,
-# concatenating the corresponding fastq files by sample:
-# ngs_concat.pl commonTextInFastqFilenames  "FilenameTextImmediatelyBeforeSampleID(.+)FilenameTextImmediatelyAfterSampleID"
-
-echo "ngs_concat.pl 'Text-' '(.+)-\d'" > concat
-launcher_creator.py -j concat -n concat -q shortq7 -t 6:00:00 -e studivanms@gmail.com
-sbatch concat.slurm
-
-# this one-liner replaces any sample numbers with the three digit version
-for f in *.fq; do x="${f##*_}"; mv "$f" "${f%_*}$(printf '_%03d.fq' "${x%.fq}")"; done
-
-# double check you have the correct number of files as samples
-ll *.fq | wc -l
-
 # look at the reads:
-# head -50 SampleName.fq
+# head -50 SampleName.fastq
 # note that every read has four lines, the ID line starts with @HWI
 
 # this little one-liner will show sequence-only in file:
-# head -100 SampleName.fq | grep -E '^[NACGT]+$'
+# head -100 SampleName.fastq | grep -E '^[NACGT]+$'
 
 # to count the number of reads in all samples
-echo "countreads_raw.pl > countreads_raw.txt" > count
+echo "countreads.pl > countreads_raw.txt" > count
 launcher_creator.py -j count -n count -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count.slurm
 
@@ -114,13 +109,13 @@ sbatch count.slurm
 # conda config --add channels bioconda
 # conda config --add channels conda-forge
 
-conda create -n sctld cutadapt
+conda create -n cutadapt cutadapt
 
 # Removing adaptors and low quality reads
 echo '#!/bin/bash' > trim.sh
-echo 'conda activate sctld' >> trim.sh
-for F in *.fq; do
-echo "tagseq_clipper.pl $F | cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 -o ${F/.fq/}.trim" >>trim.sh;
+echo 'conda activate condaenv' >> trim.sh
+for F in *.fastq; do
+echo "tagseq_clipper.pl $F | cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 -o ${F/.fastq/}.trim" >>trim.sh;
 done
 
 # Does not work with launcher_creator, consider breaking up script and running multiple jobs
@@ -136,7 +131,7 @@ ll *.trim | wc -l
 # Use the same one-liner as before on the trimmed file to see if it is different
 # from the raw one that you looked at before:
 
-# head -100 SampleName.fq | grep -E '^[NACGT]+$'
+# head -100 SampleName.fastq | grep -E '^[NACGT]+$'
 
 # head -100 SampleName.trim | grep -E '^[NACGT]+$'
 # the long runs of base A should be gone
@@ -147,7 +142,7 @@ ll *.trim | wc -l
 mv trim.e####### trim.txt
 
 # to save time in case of issues, move the concatenated fq files to backup directory
-mv *.fq ~/rawReads/
+mv *.fastq ~/rawReads/
 
 # to count the number of reads in trimmed samples
 echo "countreads_trim.pl > countreads_trim.txt" > count_trim
@@ -160,6 +155,9 @@ sbatch count_trim.slurm
 mkdir ~/db/
 cd ~/db/
 # copy your transcriptome .fasta file(s) to db/
+
+module load rsem-1.3.1-gcc-9.4.0-e7tuqgn
+conda create -n rsem rsem perl-bioperl
 
 # creating bowtie2 index for transcriptome(s)
 # replace 'Host' and 'Symbiont' with your respective filenames
