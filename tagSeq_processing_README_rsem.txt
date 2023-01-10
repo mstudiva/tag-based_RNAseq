@@ -150,12 +150,34 @@ mkdir ~/db/
 cd ~/db/
 # copy your transcriptome .fasta file(s) to db/
 
-# creating bowtie2 index for transcriptome(s)
-# replace 'Host' and 'Symbiont' with your respective filenames
-echo 'bowtie2-build Host.fasta Host' > btb
-echo 'bowtie2-build Symbiont.fasta Symbiont' >> btb
-launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
-sbatch btb.slurm
+# concatenate host/symbiont references
+# replace 'host' and 'symbiont' with your respective filenames
+cat host.fasta symbiont.fasta > host_symbiont.fasta
+
+# module load rsem-1.3.1-gcc-9.4.0-e7tuqgn
+
+# create conda environment for rsem
+conda create -n rsem rsem perl-bioperl
+
+conda activate rsem
+
+# preparing concatenated transcriptome for alignment
+# also creates bowtie2 index for transcriptome
+echo 'rsem-prepare-reference -p 8 --bowtie2 host_symbiont.fasta host_symbiont' > rsem
+launcher_creator.py -j rsem -n rsem -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+sbatch rsem.slurm
+
+# echo 'bowtie2-build Host.fasta Host' > btb
+# echo 'bowtie2-build Symbiont.fasta Symbiont' >> btb
+# launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+# sbatch btb.slurm
+
+# creates a script to map to transcriptome and count transcript abundance
+for F in *.trim; do
+echo "rsem-calculate-expression -p 8 --bowtie2 $F ~/db/Ssiderea_Breviolum_Durusdinium ${F/.trim/}.rsem" >>rsem;
+done
+launcher_creator.py -j rsem -n rsem -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+sbatch rsem.slurm
 
 
 #------------------------------
@@ -172,7 +194,7 @@ mkdir junk
 tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u host -a sym --aldir symbionts --launcher -e studivanms@gmail.com
 sbatch maps.slurm
 
-# delete the .sam files since the symbiont reads need further mapping to clean up co-occurring genes
+# delete the .sam files since the symbiont reads need further mapping to clean up conserved genes
 rm *.sam
 
 # conduct mapping on host reads (.host files) to host reference
