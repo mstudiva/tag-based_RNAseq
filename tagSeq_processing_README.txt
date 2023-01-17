@@ -151,6 +151,7 @@ cd ~/db/
 # copy your transcriptome .fasta file(s) to db/
 
 # creating bowtie2 index for transcriptome(s)
+module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
 # replace 'Host' and 'Symbiont' with your respective filenames
 echo 'bowtie2-build Host.fasta Host' > btb
 echo 'bowtie2-build Symbiont.fasta Symbiont' >> btb
@@ -161,8 +162,13 @@ sbatch btb.slurm
 #------------------------------
 ## Mapping reads to host/symbiont transcriptomes with bowtie2
 
-# if working with split host/symbiont transcriptomes, need to run FOUR rounds of mapping: 1) all reads to symbiont, 2) remaining reads to host, 3) symbiont reads to host to remove co-occurring genes, and remaining symbiont reads to symbiont for final .sam files
+# if there are multiple available reference transcriptomes for your species, create some test directories, copy over a handful of trim files, and test out alignment to each reference
+cp {001..009}.trim # to copy a numbered sequence of filenames
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .trim -n mapstest --launcher -e studivanms@gmail.com
+sbatch mapstest.slurm
+# look at each maps.e####### file for overall mapping efficiency and % of >1 matches, then compare among transcriptomes to find the best alignment rates
 
+# if working with split host/symbiont transcriptomes, need to run FOUR rounds of mapping: 1) all reads to symbiont, 2) remaining reads to host, 3) symbiont reads to host to remove co-occurring genes, and remaining symbiont reads to symbiont for final .sam files
 mkdir symbionts
 mkdir junk
 
@@ -224,6 +230,7 @@ sbatch count_align.slurm
 cp ~/annotate/Host_seq2iso.tab ~/db/
 cp ~/annotate/Symbiont_seq2iso.tab ~/db/
 
+module load samtools-1.10-gcc-8.3.0-khgksad
 samcount_launch_bt2.pl '\.host.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
 samcount_launch_bt2.pl '\.sym.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
