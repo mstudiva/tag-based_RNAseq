@@ -1,6 +1,5 @@
-# Tag-based RNA-seq reads processing pipeline, version January 10, 2023
-# Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com)
-# for use on the FAU KoKo HPC
+# Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 18, 2023
+# Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
 
 #------------------------------
@@ -46,7 +45,7 @@ wget "https://api.bintray.com/content/basespace/BaseSpaceCLI-EarlyAccess-BIN/lat
 
 chmod +x ~/bin/bs
 
-# go to the website and confirm authorization by logging in to your BaseSpace acct.
+# goes to the website to confirm authorization by logging in to your BaseSpace acct.
 bs auth
 
 #------------------------------
@@ -181,6 +180,17 @@ sbatch maps.slurm
 # delete the .sam files since the symbiont reads need further mapping to clean up co-occurring genes
 rm *.sam
 
+# OPTIONAL: if using two symbiont transcriptomes (multiple genera), run these two rounds of mapping instead before proceeding, one for each symbiont transcriptome
+# start with the more abundant symbiont genus
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u sym2 -a sym --aldir symbionts --launcher -e studivanms@gmail.com
+sbatch maps.slurm
+
+rm *.sam
+
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2 -n maps1b --split -u host -a sym2 --aldir symbionts --launcher -e studivanms@gmail.com
+sbatch maps1b.slurm
+# END OPTIONAL
+
 # conduct mapping on host reads (.host files) to host reference
 # outputs .host.sam files for host gene counts, and .host.clean files for host alignment rates
 tagseq_bowtie2_launcher.py -g ~/db/Host -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e studivanms@gmail.com
@@ -194,33 +204,52 @@ mkdir junk
 tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps3 --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
 sbatch maps3.slurm
 
+# OPTIONAL
+# running on the second symbiont reference files
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym2 -n maps3b --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
+sbatch maps3b.slurm
+# END OPTIONAL
+
 # delete the .sam files from the symbiont mapping to host
 rm *.sam
 
 # conduct final round of mapping on true symbiont reads (.sym.clean files) to symbiont reference
 # outputs .sym.clean.sam files for symbiont gene counts
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .clean -n maps4 --launcher -e studivanms@gmail.com
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .sym.clean -n maps4 --launcher -e studivanms@gmail.com
 sbatch maps4.slurm
 
 mv *.sym.clean.sam ..
 mv *.sym.clean ..
 cd ..
 
+# OPTIONAL
+# running on the second symbiont reference files
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2.clean -n maps4b --launcher -e studivanms@gmail.com
+sbatch maps4b.slurm
+
+mv *.sym2.clean.sam ..
+mv *.sym2.clean ..
+cd ..
+# END OPTIONAL
+
 # double check you have the same number of host and symbiont .sam files as samples
 ll *.host.sam | wc -l
 ll *.sym.clean.sam | wc -l
+ll *.sym2.clean.sam | wc -l # OPTIONAL
 
 # to count the number of mapped host and symbiont reads for mapping efficiency
 # calculate mapping efficiency from these values compared to trimmed reads in Excel
 # remember to delete the results from the .sam files
 echo "countreads_host.pl > countreads_host.txt" > count_align
 echo "countreads_sym.pl > countreads_sym.txt" >> count_align
+echo "countreads_sym.pl .sym2.clean > countreads_sym2.txt" >> count_align # OPTIONAL
 launcher_creator.py -j count_align -n count_align -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count_align.slurm
 
 
 #------------------------------
 ## OPTIONAL: For mapping paired-end reads, including to separate host/symbiont transcriptomes with bowtie2, follow the script bowtie2_pairedend_README.txt
+# END OPTIONAL
 
 
 #------------------------------
@@ -240,6 +269,7 @@ sbatch sc.slurm
 samcount_launch_bt2.pl '\.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch sc.slurm
+# END OPTIONAL
 
 # double check you have the same number of files as samples (double if you have split host/symbiont reads)
 ll *.counts | wc -l
@@ -250,6 +280,7 @@ srun expression_compiler.pl *.sym.clean.sam.counts > allc_sym.txt
 
 # OPTIONAL: For single-reference alignments
 srun expression_compiler.pl *.sam.counts > allc_host.txt
+# END OPTIONAL
 
 # how do the files look?
 head allc_host.txt
@@ -265,6 +296,7 @@ cat allc_host.txt | perl -pe 's/\.sam\.counts//g'>allcounts_host.txt
 # OPTIONAL: For paired-end alignments
 cat allc_host.txt | perl -pe 's/\.fastq\.host\.clean\.sam\.counts//g'>allcounts_host.txt
 cat allc_sym.txt | perl -pe 's/\.fastq\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
+# END OPTIONAL
 
 head allcounts_host.txt
 head allcounts_sym.txt
