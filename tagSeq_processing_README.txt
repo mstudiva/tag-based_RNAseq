@@ -1,4 +1,4 @@
-# Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 18, 2023
+# Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 23, 2023
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
 
@@ -189,6 +189,8 @@ rm *.sam
 
 tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2 -n maps1b --split -u host -a sym2 --aldir symbionts --launcher -e studivanms@gmail.com
 sbatch maps1b.slurm
+
+rm *.sym2.sam
 # END OPTIONAL
 
 # conduct mapping on host reads (.host files) to host reference
@@ -262,6 +264,7 @@ cp ~/annotate/Symbiont_seq2iso.tab ~/db/
 module load samtools-1.10-gcc-8.3.0-khgksad
 samcount_launch_bt2.pl '\.host.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
 samcount_launch_bt2.pl '\.sym.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc
+samcount_launch_bt2.pl '\.sym2.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc # OPTIONAL
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch sc.slurm
 
@@ -277,6 +280,7 @@ ll *.counts | wc -l
 # assembling them all into a single table:
 srun expression_compiler.pl *.host.sam.counts > allc_host.txt
 srun expression_compiler.pl *.sym.clean.sam.counts > allc_sym.txt
+srun expression_compiler.pl *.sym2.clean.sam.counts > allc_sym2.txt # OPTIONAL
 
 # OPTIONAL: For single-reference alignments
 srun expression_compiler.pl *.sam.counts > allc_host.txt
@@ -289,11 +293,13 @@ head allc_sym.txt
 # let's remove those annoying chains of extensions from sample names:
 cat allc_host.txt | perl -pe 's/\.trim\.host\.sam\.counts//g'>allcounts_host.txt
 cat allc_sym.txt | perl -pe 's/\.trim\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
+cat allc_host.txt | perl -pe 's/\.trim\.sym2\.host\.sam\.counts//g'>allcounts_host.txt # OPTIONAL
+cat allc_sym2.txt | perl -pe 's/\.trim\.sym2\.sym2\.clean\.sam\.counts//g' >allcounts_sym2.txt # OPTIONAL
 
 # OPTIONAL: For single-reference alignments
 cat allc_host.txt | perl -pe 's/\.sam\.counts//g'>allcounts_host.txt
 
-# OPTIONAL: For paired-end alignments
+# For paired-end alignments
 cat allc_host.txt | perl -pe 's/\.fastq\.host\.clean\.sam\.counts//g'>allcounts_host.txt
 cat allc_sym.txt | perl -pe 's/\.fastq\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
 # END OPTIONAL
