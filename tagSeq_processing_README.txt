@@ -1,9 +1,9 @@
-# Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 23, 2023
+## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 31, 2023
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
 
 #------------------------------
-# BEFORE STARTING, replace, in this whole file:
+## BEFORE STARTING, replace, in this whole file:
 #	- studivanms@gmail.com by your actual email;
 #	- mstudiva with your KoKo user name.
 
@@ -16,7 +16,7 @@ ssh mstudiva@koko-login.hpc.fau.edu
 
 
 #------------------------------
-# installing RNA-seq scripts and setting up the workspace
+## Installing RNA-seq scripts and setting up the workspace
 
 # switch to home directory
 cd
@@ -95,7 +95,8 @@ launcher_creator.py -j count -n count -q shortq7 -t 6:00:00 -e studivanms@gmail.
 sbatch count.slurm
 
 #------------------------------
-# Create conda environment
+## Create conda environment
+
 # Uncomment and run below if you don't have a conda env. set up
 # module load miniconda3-4.6.14-gcc-8.3.0-eenl5dj
 # conda config --add channels defaults
@@ -104,7 +105,9 @@ sbatch count.slurm
 
 conda create -n cutadapt cutadapt
 
-# Removing adaptors and low quality reads
+#------------------------------
+## Removing adaptors and low quality reads
+
 echo '#!/bin/bash' > trim.sh
 echo 'conda activate condaenv' >> trim.sh
 for F in *.fastq; do
@@ -143,7 +146,7 @@ launcher_creator.py -j count_trim -n count_trim -q shortq7 -t 6:00:00 -e studiva
 sbatch count_trim.slurm
 
 #------------------------------
-# download and format reference transcriptome:
+## Download and format reference transcriptome
 
 mkdir ~/db/
 cd ~/db/
@@ -180,19 +183,6 @@ sbatch maps.slurm
 # delete the .sam files since the symbiont reads need further mapping to clean up co-occurring genes
 rm *.sam
 
-# OPTIONAL: if using two symbiont transcriptomes (multiple genera), run these two rounds of mapping instead before proceeding, one for each symbiont transcriptome
-# start with the more abundant symbiont genus
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u sym2 -a sym --aldir symbionts --launcher -e studivanms@gmail.com
-sbatch maps.slurm
-
-rm *.sam
-
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2 -n maps1b --split -u host -a sym2 --aldir symbionts --launcher -e studivanms@gmail.com
-sbatch maps1b.slurm
-
-rm *.sym2.sam
-# END OPTIONAL
-
 # conduct mapping on host reads (.host files) to host reference
 # outputs .host.sam files for host gene counts, and .host.clean files for host alignment rates
 tagseq_bowtie2_launcher.py -g ~/db/Host -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e studivanms@gmail.com
@@ -206,12 +196,6 @@ mkdir junk
 tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps3 --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
 sbatch maps3.slurm
 
-# OPTIONAL
-# running on the second symbiont reference files
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym2 -n maps3b --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
-sbatch maps3b.slurm
-# END OPTIONAL
-
 # delete the .sam files from the symbiont mapping to host
 rm *.sam
 
@@ -224,15 +208,58 @@ mv *.sym.clean.sam ..
 mv *.sym.clean ..
 cd ..
 
-# OPTIONAL
+#------------------------------
+# OPTIONAL: if using two symbiont transcriptomes (multiple genera), additional rounds of mapping are needed
+# start with the more abundant symbiont genus
+
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u sym2 -a sym --aldir symbionts --launcher -e studivanms@gmail.com
+sbatch maps.slurm
+rm *.sam
+
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2 -n maps1b --split -u host -a sym2 --aldir symbionts --launcher -e studivanms@gmail.com
+sbatch maps1b.slurm
+rm *.sym2.sam
+
+# conduct mapping on host reads (.host files) to host reference
+# outputs .host.sam files for host gene counts, and .host.clean files for host alignment rates
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e studivanms@gmail.com
+sbatch maps2.slurm
+
+cd symbionts/
+mkdir junk
+
+# removing genes from symbiont reads that align to both host/symbiont references by conducting another round of mapping on .sym files
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps3 --split -u sym2 -a host --aldir junk --launcher -e studivanms@gmail.com
+sbatch maps3.slurm
+rm *.sam
+
+# to remove reads that map to both symbiont transcriptomes
+# outputs sym.clean files for symbiont alignment rates
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym.sym2 -n maps3b --split -u clean -a sym2 --aldir junk --launcher -e studivanms@gmail.com
+sbatch maps3b.slurm
+rm *.sam
+
+# running host alignments on the second symbiont reference files
+tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym2.sym2 -n maps3c --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
+sbatch maps3c.slurm
+rm *.sam
+
+# conduct final round of mapping on true symbiont reads (.sym.clean files) to symbiont reference
+# outputs .sym.clean.sam files for symbiont gene counts
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .sym.sym2.clean -n maps4 --launcher -e studivanms@gmail.com
+sbatch maps4.slurm
+
 # running on the second symbiont reference files
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2.clean -n maps4b --launcher -e studivanms@gmail.com
+tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2.sym2.clean -n maps4b --launcher -e studivanms@gmail.com
 sbatch maps4b.slurm
 
 mv *.sym2.clean.sam ..
 mv *.sym2.clean ..
 cd ..
-# END OPTIONAL
+
+
+#------------------------------
+## Mapping efficiency
 
 # double check you have the same number of host and symbiont .sam files as samples
 ll *.host.sam | wc -l
@@ -244,18 +271,18 @@ ll *.sym2.clean.sam | wc -l # OPTIONAL
 # remember to delete the results from the .sam files
 echo "countreads_host.pl > countreads_host.txt" > count_align
 echo "countreads_sym.pl > countreads_sym.txt" >> count_align
-echo "countreads_sym.pl .sym2.clean > countreads_sym2.txt" >> count_align # OPTIONAL
+echo "countreads_sym.pl .sym.sym2.clean > countreads_sym.txt" >> count_align # OPTIONAL
+echo "countreads_sym.pl .sym2.sym2.clean > countreads_sym2.txt" >> count_align # OPTIONAL
 launcher_creator.py -j count_align -n count_align -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count_align.slurm
 
 
 #------------------------------
 ## OPTIONAL: For mapping paired-end reads, including to separate host/symbiont transcriptomes with bowtie2, follow the script bowtie2_pairedend_README.txt
-# END OPTIONAL
 
 
 #------------------------------
-# generating read-counts-per gene: (again, creating a job file to do it simultaneously for all)
+## Generating read-counts-per gene: (again, creating a job file to do it simultaneously for all)
 
 # NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file and genes
 cp ~/annotate/Host_seq2iso.tab ~/db/
@@ -264,7 +291,8 @@ cp ~/annotate/Symbiont_seq2iso.tab ~/db/
 module load samtools-1.10-gcc-8.3.0-khgksad
 samcount_launch_bt2.pl '\.host.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
 samcount_launch_bt2.pl '\.sym.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc
-samcount_launch_bt2.pl '\.sym2.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc # OPTIONAL
+samcount_launch_bt2.pl '\.sym.sym2.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc # OPTIONAL
+samcount_launch_bt2.pl '\.sym2.sym2.clean.sam$' /home/mstudiva/db/Symbiont2_seq2iso.tab >> sc # OPTIONAL
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch sc.slurm
 
@@ -280,7 +308,8 @@ ll *.counts | wc -l
 # assembling them all into a single table:
 srun expression_compiler.pl *.host.sam.counts > allc_host.txt
 srun expression_compiler.pl *.sym.clean.sam.counts > allc_sym.txt
-srun expression_compiler.pl *.sym2.clean.sam.counts > allc_sym2.txt # OPTIONAL
+srun expression_compiler.pl *.sym.sym2.clean.sam.counts > allc_sym.txt # OPTIONAL
+srun expression_compiler.pl *.sym2.sym2.clean.sam.counts > allc_sym2.txt # OPTIONAL
 
 # OPTIONAL: For single-reference alignments
 srun expression_compiler.pl *.sam.counts > allc_host.txt
@@ -294,6 +323,7 @@ head allc_sym.txt
 cat allc_host.txt | perl -pe 's/\.trim\.host\.sam\.counts//g'>allcounts_host.txt
 cat allc_sym.txt | perl -pe 's/\.trim\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
 cat allc_host.txt | perl -pe 's/\.trim\.sym2\.host\.sam\.counts//g'>allcounts_host.txt # OPTIONAL
+cat allc_sym.txt | perl -pe 's/\.trim\.sym\.sym2\.clean\.sam\.counts//g' >allcounts_sym.txt # OPTIONAL
 cat allc_sym2.txt | perl -pe 's/\.trim\.sym2\.sym2\.clean\.sam\.counts//g' >allcounts_sym2.txt # OPTIONAL
 
 # OPTIONAL: For single-reference alignments
@@ -312,6 +342,8 @@ pwd
 # copy the path
 
 #------------------------------
+## Downloading gene count files
+
 # open new terminal window on Mac, or WinSCP on Windows
 # navigate to the directory you want the file to be
 # (on Mac, you can just drag the destination folder from Finder into command line to get the full path).
