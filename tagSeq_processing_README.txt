@@ -1,15 +1,9 @@
-## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 31, 2023
+## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version August 16, 2023
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
-
-#------------------------------
 ## BEFORE STARTING, replace, in this whole file:
 #	- studivanms@gmail.com by your actual email;
 #	- mstudiva with your KoKo user name.
-
-# The idea is to copy the chunks separated by empty lines below and paste them into your cluster terminal window consecutively.
-
-# The lines beginning with hash marks (#) are explanations and additional instructions – please make sure to read them before copy-pasting.
 
 # log onto cluster
 ssh mstudiva@koko-login.hpc.fau.edu
@@ -18,34 +12,24 @@ ssh mstudiva@koko-login.hpc.fau.edu
 #------------------------------
 ## Installing RNA-seq scripts and setting up the workspace
 
-# switch to home directory
-cd
-
-# unless you have done it in the past, make directory called bin,
-# all your scripts should go in there:
+# all scripts will go in a bin directory
 mkdir bin
-
-# switch to bin:
 cd bin
 
 # clone github repository
 git clone https://github.com/mstudiva/tag-based_RNAseq.git
 
-# move files from subdir tag-based_RNAseq-master to bin/:
+# move files from subdirectory tag-based_RNAseq-master to bin
 mv tag-based_RNAseq/* .
-
-# remove the tag-based_RNAseq directory
 rm -rf tag-based_RNAseq
-
 # remove the TACC version of launcher_creator.py from the bin directory (preinstalled on KoKo)
 rm launcher_creator.py
 
-# If you have not previously, download BaseSpaceCLI
+# if you have not previously, download BaseSpaceCLI
 wget "https://api.bintray.com/content/basespace/BaseSpaceCLI-EarlyAccess-BIN/latest/\$latest/amd64-linux/bs?bt_package=latest" -O $HOME/bin/bs
-
 chmod +x ~/bin/bs
 
-# goes to the website to confirm authorization by logging in to your BaseSpace acct.
+# authorization of your BaseSpace account to KoKo
 bs auth
 
 #------------------------------
@@ -82,28 +66,31 @@ sbatch --mem=200GB downloadReads.slurm
 # double check you have the correct number of files as samples
 ll *.fastq | wc -l
 
-# look at the reads:
-# head -50 SampleName.fastq
+# look at the reads
+head -50 SampleName.fastq
 # note that every read has four lines, the ID line starts with @HWI
 
-# this little one-liner will show sequence-only in file:
-# head -100 SampleName.fastq | grep -E '^[NACGT]+$'
+# shows only nucleotide sequences in file
+head -100 SampleName.fastq | grep -E '^[NACGT]+$'
 
 # to count the number of reads in all samples
 echo "countreads.pl > countreads_raw.txt" > count
 launcher_creator.py -j count -n count -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count.slurm
 
-#------------------------------
-## Create conda environment
 
-# Uncomment and run below if you don't have a conda env. set up
+#------------------------------
+## Creating conda environments for specialized modules
+
+# uncomment and run below if you don't have conda set up
 # module load miniconda3-4.6.14-gcc-8.3.0-eenl5dj
 # conda config --add channels defaults
 # conda config --add channels bioconda
 # conda config --add channels conda-forge
 
 conda create -n cutadapt cutadapt
+# this is specifically for cutadapt, which doesn't play well with other KoKo modules
+
 
 #------------------------------
 ## Removing adaptors and low quality reads
@@ -114,22 +101,18 @@ for F in *.fastq; do
 echo "tagseq_clipper.pl $F | cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 -o ${F/.fastq/}.trim" >>trim.sh;
 done
 
-# Does not work with launcher_creator, consider breaking up script and running multiple jobs
+# does not work with launcher_creator, consider breaking up script and running multiple jobs
 sbatch -o trim.o%j -e trim.e%j --mem=200GB trim.sh
 
-# how the job is doing?
+# checking the status of the job
 squeue -u mstudiva
 
 # double check you have the same number of files as samples
 ll *.trim | wc -l
 
-# but did the trimming really work?
-# Use the same one-liner as before on the trimmed file to see if it is different
-# from the raw one that you looked at before:
-
-# head -100 SampleName.fastq | grep -E '^[NACGT]+$'
-
-# head -100 SampleName.trim | grep -E '^[NACGT]+$'
+# did the trimming work?
+head -100 SampleName.fastq | grep -E '^[NACGT]+$'
+head -100 SampleName.trim | grep -E '^[NACGT]+$'
 # the long runs of base A should be gone
 
 # double-check that the rnaseq_clipper did not filter out too many reads by looking at the trim.e####### file
@@ -137,7 +120,7 @@ ll *.trim | wc -l
 # rename as a txt file
 mv trim.e####### trim.txt
 
-# to save time in case of issues, move the concatenated fq files to backup directory
+# to save time in case of issues, move the concatenated fastq files to backup directory
 mv *.fastq ~/rawReads/
 
 # to count the number of reads in trimmed samples
@@ -145,18 +128,18 @@ echo "countreads_trim.pl > countreads_trim.txt" > count_trim
 launcher_creator.py -j count_trim -n count_trim -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count_trim.slurm
 
+
 #------------------------------
 ## Download and format reference transcriptome
 
 mkdir ~/db/
 cd ~/db/
-# copy your transcriptome .fasta file(s) to db/
+# copy your transcriptome fasta file(s) to db/
 
-# creating bowtie2 index for transcriptome(s)
+# creating bowtie2 index for multiple transcriptomes
 module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
 # replace 'Host' and 'Symbiont' with your respective filenames
-echo 'bowtie2-build Host.fasta Host' > btb
-echo 'bowtie2-build Symbiont.fasta Symbiont' >> btb
+echo 'bowtie2-build Host.fasta,Symbiont.fasta,Symbiont2.fasta Host_concat' > btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch btb.slurm
 
@@ -164,195 +147,75 @@ sbatch btb.slurm
 #------------------------------
 ## Mapping reads to host/symbiont transcriptomes with bowtie2
 
+module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
+
 # if there are multiple available reference transcriptomes for your species, create some test directories, copy over a handful of trim files, and test out alignment to each reference
 cp {001..009}.trim # to copy a numbered sequence of filenames
 tagseq_bowtie2_launcher.py -g ~/db/Host -f .trim -n mapstest --launcher -e studivanms@gmail.com
 sbatch mapstest.slurm
 # look at each maps.e####### file for overall mapping efficiency and % of >1 matches, then compare among transcriptomes to find the best alignment rates
 
-# if working with split host/symbiont transcriptomes, need to run FOUR rounds of mapping: 1) all reads to symbiont, 2) remaining reads to host, 3) symbiont reads to host to remove co-occurring genes, and remaining symbiont reads to symbiont for final .sam files
-mkdir symbionts
-mkdir junk
+# now running the full set of files
+mkdir unaligned
 
-# replace 'Symbionts' with your symbiont filename, and 'Host' with your host filename
-# maps reads to symbiont reference first, and splits symbiont reads (.sym) to alternate subdirectory
-# outputs .host files of remaining reads for host mapping
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u host -a sym --aldir symbionts --launcher -e studivanms@gmail.com
+# bowtie will separate out aligned and unaligned reads for counts below
+# it will also pick the best alignment from the concatenated transcriptomes
+tagseq_bowtie2_launcher_concat.py -g ~/db/Host_concat/Host_concat -f .trim -n maps --split -u un -a al --undir unaligned --launcher -e studivanms@gmail.com
 sbatch maps.slurm
 
-# delete the .sam files since the symbiont reads need further mapping to clean up co-occurring genes
-rm *.sam
-
-# conduct mapping on host reads (.host files) to host reference
-# outputs .host.sam files for host gene counts, and .host.clean files for host alignment rates
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e studivanms@gmail.com
-sbatch maps2.slurm
-
-cd symbionts/
-mkdir junk
-
-# removing genes from symbiont reads that align to both host/symbiont references by conducting another round of mapping on .sym files
-# outputs sym.clean files for symbiont alignment rates
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps3 --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
-sbatch maps3.slurm
-
-# delete the .sam files from the symbiont mapping to host
-rm *.sam
-
-# conduct final round of mapping on true symbiont reads (.sym.clean files) to symbiont reference
-# outputs .sym.clean.sam files for symbiont gene counts
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .sym.clean -n maps4 --launcher -e studivanms@gmail.com
-sbatch maps4.slurm
-
-mv *.sym.clean.sam ..
-mv *.sym.clean ..
-cd ..
-
-#------------------------------
-# OPTIONAL: if using two symbiont transcriptomes (multiple genera), additional rounds of mapping are needed
-# start with the more abundant symbiont genus
-
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .trim -n maps --split -u sym2 -a sym --aldir symbionts --launcher -e studivanms@gmail.com
-sbatch maps.slurm
-rm *.sam
-
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2 -n maps1b --split -u host -a sym2 --aldir symbionts --launcher -e studivanms@gmail.com
-sbatch maps1b.slurm
-rm *.sym2.sam
-
-# conduct mapping on host reads (.host files) to host reference
-# outputs .host.sam files for host gene counts, and .host.clean files for host alignment rates
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .host -n maps2 --split -u un -a clean --undir junk --launcher -e studivanms@gmail.com
-sbatch maps2.slurm
-
-cd symbionts/
-mkdir junk
-
-# removing genes from symbiont reads that align to both host/symbiont references by conducting another round of mapping on .sym files
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym -n maps3 --split -u sym2 -a host --aldir junk --launcher -e studivanms@gmail.com
-sbatch maps3.slurm
-rm *.sam
-
-# to remove reads that map to both symbiont transcriptomes
-# outputs sym.clean files for symbiont alignment rates
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym.sym2 -n maps3b --split -u clean -a sym2 --aldir junk --launcher -e studivanms@gmail.com
-sbatch maps3b.slurm
-rm *.sam
-
-# running host alignments on the second symbiont reference files
-tagseq_bowtie2_launcher.py -g ~/db/Host -f .sym2.sym2 -n maps3c --split -u clean -a host --aldir junk --launcher -e studivanms@gmail.com
-sbatch maps3c.slurm
-rm *.sam
-
-# conduct final round of mapping on true symbiont reads (.sym.clean files) to symbiont reference
-# outputs .sym.clean.sam files for symbiont gene counts
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont -f .sym.sym2.clean -n maps4 --launcher -e studivanms@gmail.com
-sbatch maps4.slurm
-
-# running on the second symbiont reference files
-tagseq_bowtie2_launcher.py -g ~/db/Symbiont2 -f .sym2.sym2.clean -n maps4b --launcher -e studivanms@gmail.com
-sbatch maps4b.slurm
-
-mv *.sym2.clean.sam ..
-mv *.sym2.clean ..
-cd ..
+## OPTIONAL: For mapping paired-end reads, including to separate host/symbiont transcriptomes with bowtie2, follow the script bowtie2_pairedend_README.txt
 
 
 #------------------------------
 ## Mapping efficiency
 
 # double check you have the same number of host and symbiont .sam files as samples
-ll *.host.sam | wc -l
-ll *.sym.clean.sam | wc -l
-ll *.sym2.clean.sam | wc -l # OPTIONAL
+ll *.sam | wc -l
 
-# to count the number of mapped host and symbiont reads for mapping efficiency
+# to count the number of mapped reads for mapping efficiency
 # calculate mapping efficiency from these values compared to trimmed reads in Excel
-# remember to delete the results from the .sam files
-echo "countreads_host.pl > countreads_host.txt" > count_align
-echo "countreads_sym.pl > countreads_sym.txt" >> count_align
-echo "countreads_sym.pl .sym.sym2.clean > countreads_sym.txt" >> count_align # OPTIONAL
-echo "countreads_sym.pl .sym2.sym2.clean > countreads_sym2.txt" >> count_align # OPTIONAL
+echo "countreads_align.pl > countreads_align.txt" > count_align
 launcher_creator.py -j count_align -n count_align -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count_align.slurm
 
 
 #------------------------------
-## OPTIONAL: For mapping paired-end reads, including to separate host/symbiont transcriptomes with bowtie2, follow the script bowtie2_pairedend_README.txt
-
-
-#------------------------------
-## Generating read-counts-per gene: (again, creating a job file to do it simultaneously for all)
+## Generating read counts per gene
 
 # NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file and genes
-cp ~/annotate/Host_seq2iso.tab ~/db/
-cp ~/annotate/Symbiont_seq2iso.tab ~/db/
+cp ~/annotate/Host_concat_seq2iso.tab ~/db/
 
 module load samtools-1.10-gcc-8.3.0-khgksad
-samcount_launch_bt2.pl '\.host.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
-samcount_launch_bt2.pl '\.sym.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc
-samcount_launch_bt2.pl '\.sym.sym2.clean.sam$' /home/mstudiva/db/Symbiont_seq2iso.tab >> sc # OPTIONAL
-samcount_launch_bt2.pl '\.sym2.sym2.clean.sam$' /home/mstudiva/db/Symbiont2_seq2iso.tab >> sc # OPTIONAL
+samcount_launch_bt2.pl '\.sam$' /home/mstudiva/db/Host_concat_seq2iso.tab > sc
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch sc.slurm
 
-# OPTIONAL: For single-reference alignments
-samcount_launch_bt2.pl '\.sam$' /home/mstudiva/db/Host_seq2iso.tab > sc
-launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
-sbatch sc.slurm
-# END OPTIONAL
-
-# double check you have the same number of files as samples (double if you have split host/symbiont reads)
+# double check you have the same number of files as samples
 ll *.counts | wc -l
 
 # assembling them all into a single table:
-srun expression_compiler.pl *.host.sam.counts > allc_host.txt
-srun expression_compiler.pl *.sym.clean.sam.counts > allc_sym.txt
-srun expression_compiler.pl *.sym.sym2.clean.sam.counts > allc_sym.txt # OPTIONAL
-srun expression_compiler.pl *.sym2.sym2.clean.sam.counts > allc_sym2.txt # OPTIONAL
-
-# OPTIONAL: For single-reference alignments
-srun expression_compiler.pl *.sam.counts > allc_host.txt
-# END OPTIONAL
+srun expression_compiler.pl *.counts > allc.txt
 
 # how do the files look?
 head allc_host.txt
-head allc_sym.txt
 
-# let's remove those annoying chains of extensions from sample names:
-cat allc_host.txt | perl -pe 's/\.trim\.host\.sam\.counts//g'>allcounts_host.txt
-cat allc_sym.txt | perl -pe 's/\.trim\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
-cat allc_host.txt | perl -pe 's/\.trim\.sym2\.host\.sam\.counts//g'>allcounts_host.txt # OPTIONAL
-cat allc_sym.txt | perl -pe 's/\.trim\.sym\.sym2\.clean\.sam\.counts//g' >allcounts_sym.txt # OPTIONAL
-cat allc_sym2.txt | perl -pe 's/\.trim\.sym2\.sym2\.clean\.sam\.counts//g' >allcounts_sym2.txt # OPTIONAL
+# let's remove those annoying chains of extensions from sample names
+cat allc_host.txt | perl -pe 's/\.trim\.sam\.counts//g'>allcounts.txt
 
-# OPTIONAL: For single-reference alignments
-cat allc_host.txt | perl -pe 's/\.sam\.counts//g'>allcounts_host.txt
+# OPTIONAL: for paired-end alignments
+cat allc_host.txt | perl -pe 's/\.fastq\.sam\.counts//g'>allcounts.txt
 
-# For paired-end alignments
-cat allc_host.txt | perl -pe 's/\.fastq\.host\.clean\.sam\.counts//g'>allcounts_host.txt
-cat allc_sym.txt | perl -pe 's/\.fastq\.sym\.clean\.sam\.counts//g' >allcounts_sym.txt
-# END OPTIONAL
+head allcounts.txt
 
-head allcounts_host.txt
-head allcounts_sym.txt
-
-# display full path to where you were doing all this:
-pwd
-# copy the path
 
 #------------------------------
 ## Downloading gene count files
 
-# open new terminal window on Mac, or WinSCP on Windows
-# navigate to the directory you want the file to be
-# (on Mac, you can just drag the destination folder from Finder into command line to get the full path).
+# open new terminal window on Mac, or WinSCP on Windows, and navigate to desired directory
+cd /path/to/local/directory
 
 # this copies all .txt files, including allcounts, allc, alignrate, read counts
-cd /path/to/local/directory
-scp mstudiva@koko-login.fau.edu:~/path/to/HPC/directory/*.txt .
-
-# copy the file from KoKo using scp (in WinSCP, just paste the path you just copied into an appropriate slot (should be self-evident) and drag the allcounts.txt file to your local directory)
+scp mstudiva@koko-login.fau.edu:~/path/to/HPC/directory/\*.txt .
 
 # DONE! Next, we will be using R to make sense of the counts...
 # BUT FIRST, read tagSeq_analysis_README.txt for the next steps

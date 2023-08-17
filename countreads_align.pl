@@ -2,12 +2,12 @@
 
 print "
 
-countreads_sym.pl : counts the number of symbiont-mapped reads in a bunch of fastq files
-argument - glob to fastq files, default \.sym.clean
+countreads_align.pl : counts the number of mapped reads in a bunch of fastq files
+argument - glob to fastq files, default \.trim.al
 
 ";
 
-my $glob="\.sym.clean";
+my $glob="\.trim.al";
 if ($ARGV[0]) { $glob=$ARGV[0];}
 
 opendir THIS, ".";
