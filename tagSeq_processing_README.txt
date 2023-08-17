@@ -196,14 +196,14 @@ ll *.counts | wc -l
 # assembling them all into a single table:
 srun expression_compiler.pl *.counts > allc.txt
 
-# how do the files look?
-head allc_host.txt
+# how do the counts look?
+head allc.txt
 
 # let's remove those annoying chains of extensions from sample names
-cat allc_host.txt | perl -pe 's/\.trim\.sam\.counts//g'>allcounts.txt
+cat allc.txt | perl -pe 's/\.trim\.sam\.counts//g'>allcounts.txt
 
 # OPTIONAL: for paired-end alignments
-cat allc_host.txt | perl -pe 's/\.fastq\.sam\.counts//g'>allcounts.txt
+cat allc.txt | perl -pe 's/\.fastq\.sam\.counts//g'>allcounts.txt
 
 head allcounts.txt
 
@@ -215,7 +215,7 @@ head allcounts.txt
 cd /path/to/local/directory
 
 # this copies all .txt files, including allcounts, allc, alignrate, read counts
-scp mstudiva@koko-login.fau.edu:~/path/to/HPC/directory/\*.txt .
+scp mstudiva@koko-login.hpc.fau.edu:~/path/to/HPC/directory/\*.txt .
 
 # DONE! Next, we will be using R to make sense of the counts...
 # BUT FIRST, read tagSeq_analysis_README.txt for the next steps
