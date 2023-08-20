@@ -1,4 +1,4 @@
-# Quick n' dirty Symbiodiniaceae typing from transcriptomic datasets, version September 11, 2020
+# Quick n' dirty Symbiodiniaceae typing from transcriptomic datasets, version August 17, 2023
 # Created by Michael Studivan (studivanms@gmail.com)
 # for use on the FAU KoKo HPC
 
@@ -27,12 +27,14 @@ scp 28S.fasta username@koko-login.hpc.fau.edu:~/path/to/directory/.
 #------------------------------
 # then login and navigate to the directory
 # build a bowtie2 index of Symbiodiniaceae 28S genes
+module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
 echo 'bowtie2-build 28S.fasta Symbiodiniaceae_28S' > btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00
 sbatch btb.slurm
 
 #------------------------------
 # lists all the .fastq files in the directory, then applies the bowtie2 and samtools commands to align and count 28S sequences to sample transcripts
+module load samtools-1.10-gcc-8.3.0-khgksad
 ls *fastq | perl -pe 's/(\S+)/bowtie2 -U $1 -x Symbiodiniaceae_28S --threads 20 -q --score-min L,0,0 --very-sensitive --end-to-end \| samtools view -Sb -o $1.bam/' >align
 launcher_creator.py -j align -n align -t 6:00:00 -q shortq7
 sbatch align.slurm
@@ -77,4 +79,4 @@ paste *.counts > counts.txt
 
 #------------------------------
 # scp .txt files (align rate and counts) to local machine, then build spreadsheet with all samples as columns
-scp username@koko-login.hpc.fau.edu:~/path/to/HPC/directory/*.txt .
+scp username@koko-login.hpc.fau.edu:~/path/to/HPC/directory/\*.txt .

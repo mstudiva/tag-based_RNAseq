@@ -88,7 +88,7 @@ sbatch count.slurm
 # conda config --add channels bioconda
 # conda config --add channels conda-forge
 
-conda create -n cutadapt cutadapt
+conda create -n cutadaptenv cutadapt
 # this is specifically for cutadapt, which doesn't play well with other KoKo modules
 
 
@@ -96,7 +96,7 @@ conda create -n cutadapt cutadapt
 ## Removing adaptors and low quality reads
 
 echo '#!/bin/bash' > trim.sh
-echo 'conda activate condaenv' >> trim.sh
+echo 'conda activate cutadaptenv' >> trim.sh
 for F in *.fastq; do
 echo "tagseq_clipper.pl $F | cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 -o ${F/.fastq/}.trim" >>trim.sh;
 done
@@ -184,6 +184,8 @@ sbatch count_align.slurm
 
 # NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file and genes
 cp ~/annotate/Host_concat_seq2iso.tab ~/db/
+# if working with multiple reference transcriptomes, concatenate the seq2iso tables
+cat Host_seq2iso.tab Sym_seq2iso.tab > Host_concat_seq2iso.tab
 
 module load samtools-1.10-gcc-8.3.0-khgksad
 samcount_launch_bt2.pl '\.sam$' /home/mstudiva/db/Host_concat_seq2iso.tab > sc
