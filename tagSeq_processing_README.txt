@@ -95,6 +95,8 @@ conda create -n cutadaptenv cutadapt
 #------------------------------
 ## Removing adaptors and low quality reads
 
+conda activate cutadaptenv
+
 echo '#!/bin/bash' > trim.sh
 echo 'conda activate cutadaptenv' >> trim.sh
 for F in *.fastq; do
