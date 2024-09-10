@@ -1,4 +1,4 @@
-## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version August 16, 2023
+## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version September 10, 2024
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
 ## BEFORE STARTING, replace, in this whole file:
@@ -35,6 +35,9 @@ bs auth
 #------------------------------
 ## Download and concatenate reads with a launcher_creator script
 
+mkdir rawReads
+cd rawReads
+
 echo '#!/bin/bash' > downloadReads.sh
 echo 'bs download project --concurrency=high -q -n ####### -o .' >> downloadReads.sh
 # -n is the BaseSpace project name and -o is the output directory
@@ -45,7 +48,7 @@ echo 'mkdir ../concatReads' >> downloadReads.sh
 echo 'cp *.gz ../concatReads' >> downloadReads.sh
 echo 'cd ../concatReads' >> downloadReads.sh
 echo 'for file in *.gz; do mv "${file}" "${file/-2/}"; done' >> downloadReads.sh
-# this removes the '-2' in filenames from duplicate samples for downstream merging
+# ONLY INCLUDE ABOVE LINE IF YOU HAVE '-2' IN YOUR FILENAMES: this removes the '-2' in filenames from duplicate samples for downstream merging
 
 echo "for file in *.fastq.gz; do echo $file | awk -F_ '{ printf("%03d_%s\n", $1, substr($0, index($0, $2))); }' | xargs -I{} mv $file {}; done" >> downloadReads.sh
 # this replaces any sample numbers with the three digit version
