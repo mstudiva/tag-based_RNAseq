@@ -36,6 +36,8 @@ sbatch btb.slurm
 # lists all the .fastq files in the directory, then applies the bowtie2 and samtools commands to align and count 28S sequences to sample transcripts
 module load samtools-1.10-gcc-8.3.0-khgksad
 ls *fastq | perl -pe 's/(\S+)/bowtie2 -U $1 -x Symbiodiniaceae_28S --threads 20 -q --score-min L,0,0 --very-sensitive --end-to-end \| samtools view -Sb -o $1.bam/' >align
+# also works on .trim files
+# ls *trim | perl -pe 's/(\S+)/bowtie2 -U $1 -x Symbiodiniaceae_28S --threads 20 -q --score-min L,0,0 --very-sensitive --end-to-end \| samtools view -Sb -o $1.bam/' >align
 launcher_creator.py -j align -n align -t 6:00:00 -q shortq7
 sbatch align.slurm
 
@@ -46,7 +48,7 @@ squeue -u username
 ll *.bam | wc -l
 
 # once finished, rename the job error output containing alignment rates to a .txt file
-mv align.e####### alignrate.txt
+mv align.e####### zoox_alignrate.txt
 nano alignrate.txt
 
 # move the .fq files back to the original directory
@@ -75,7 +77,7 @@ squeue -u username
 ll *.counts | wc -l
 
 # combines all results into a single horizontal .txt
-paste *.counts > counts.txt
+paste *.counts > zoox_counts.txt
 
 #------------------------------
 # scp .txt files (align rate and counts) to local machine, then build spreadsheet with all samples as columns
