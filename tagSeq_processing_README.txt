@@ -126,7 +126,7 @@ head -100 SampleName.trim | grep -E '^[NACGT]+$'
 mv trim.e####### trim.txt
 
 # to save time in case of issues, move the concatenated fastq files to backup directory
-mv *.fastq ~/rawReads/
+mv *.fastq ../rawReads/
 
 # to count the number of reads in trimmed samples
 echo "countreads_trim.pl > countreads_trim.txt" > count_trim
