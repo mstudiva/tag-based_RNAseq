@@ -1,4 +1,4 @@
-## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version September 10, 2024
+## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version December 31, 2024
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
 ## BEFORE STARTING, replace, in this whole file:
@@ -47,11 +47,12 @@ echo 'rmdir SA*' >>downloadReads.sh
 echo 'mkdir ../concatReads' >> downloadReads.sh
 echo 'cp *.gz ../concatReads' >> downloadReads.sh
 echo 'cd ../concatReads' >> downloadReads.sh
-echo 'for file in *.gz; do mv "${file}" "${file/-2/}"; done' >> downloadReads.sh
-# ONLY INCLUDE ABOVE LINE IF YOU HAVE '-2' IN YOUR FILENAMES: this removes the '-2' in filenames from duplicate samples for downstream merging
 
+# NOTE: ONLY INCLUDE ABOVE LINE IF YOU HAVE '-2' IN YOUR FILENAMES: this removes the '-2' in filenames from duplicate samples for downstream merging
+echo 'for file in *.gz; do mv "${file}" "${file/-2/}"; done' >> downloadReads.sh
+
+# NOTE: This replaces any sample numbers with the three digit version
 echo "for file in *.fastq.gz; do echo $file | awk -F_ '{ printf("%03d_%s\n", $1, substr($0, index($0, $2))); }' | xargs -I{} mv $file {}; done" >> downloadReads.sh
-# this replaces any sample numbers with the three digit version
 
 echo 'mergeReads.sh -o mergeTemp' >> downloadReads.sh
 # -o is the directory to put output files in
@@ -65,6 +66,11 @@ chmod +x downloadReads.sh
 
 launcher_creator.py -b 'srun downloadReads.sh' -n downloadReads -q shortq7 -t 06:00:00 -e studivanms@gmail.com
 sbatch --mem=200GB downloadReads.slurm
+
+# NOTE: This script has been stalling at the gunzip stage - run this if so:
+for F in *.gz; do echo "gunzip $F" >> unzip; done
+launcher_creator.py -j unzip -n unzip -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+sbatch unzip.slurm
 
 # double check you have the correct number of files as samples
 ll *.fastq | wc -l
@@ -91,8 +97,7 @@ sbatch count.slurm
 # conda config --add channels bioconda
 # conda config --add channels conda-forge
 
-conda create -n cutadaptenv cutadapt
-# this is specifically for cutadapt, which doesn't play well with other KoKo modules
+conda create -n cutadapt_env cutadapt
 
 
 #------------------------------
@@ -100,14 +105,14 @@ conda create -n cutadaptenv cutadapt
 
 conda activate cutadaptenv
 
-echo '#!/bin/bash' > trim.sh
-echo 'conda activate cutadaptenv' >> trim.sh
+echo '#!/bin/bash' > trim
+echo 'conda activate cutadaptenv' >> trim
 for F in *.fastq; do
-echo "tagseq_clipper.pl $F | cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 -o ${F/.fastq/}.trim" >>trim.sh;
+echo "tagseq_clipper.pl $F | cutadapt - -a AAAAAAAA -a AGATCGG -q 15 -m 25 -o ${F/.fastq/}.trim" >>trim;
 done
 
-# does not work with launcher_creator, consider breaking up script and running multiple jobs
-sbatch -o trim.o%j -e trim.e%j --mem=200GB trim.sh
+launcher_creator.py -j trim -n trim -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+sbatch trim.slurm
 
 # checking the status of the job
 squeue -u mstudiva
@@ -145,6 +150,20 @@ cd ~/db/
 module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
 # replace 'Host' and 'Symbiont' with your respective filenames
 echo 'bowtie2-build Host.fasta,Symbiont.fasta,Symbiont2.fasta Host_concat' > btb
+launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
+sbatch btb.slurm
+
+# OPTIONAL: If you have mixed symbiont assemblages that are not equally distributed across samples (some samples have Symbiont vs others that have Symbiont2), it will create downstream differential expression due to presence/absence
+# One potential way around this is to run Orthofinder on both symbiont assemblies to identify shared genes (orthologs), use that output to rename a concatenated symbiont assembly by ortholog, filter out all other genes, then map to the ortholog assembly
+# replace 'Symbiont' and 'Symbiont2' with your respective filenames
+cat Symbiont.fasta Symbiont2.fasta > Symbiont_Symbiont2.fasta
+
+srun perl ~/bin/rename_fasta_by_orthogroup.pl orthologs_unique.txt Symbiont_Symbiont2.fasta Symbiont_Symbiont2_orthologs.fasta
+
+# now creating bowtie2 index
+module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
+# replace 'Host' and 'Symbiont' with your respective filenames
+echo 'bowtie2-build Host.fasta,Symbiont_Symbiont2_orthologs.fasta Host_Symbiont_orthologs' > btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch btb.slurm
 
