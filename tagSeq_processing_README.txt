@@ -213,22 +213,14 @@ sbatch count_align.slurm
 
 # NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file and genes
 cp ~/annotate/Host_concat_seq2iso.tab ~/db/
-# if working with multiple reference transcriptomes, concatenate the seq2iso tables
-cat Host_seq2iso.tab Sym_seq2iso.tab > Host_concat_seq2iso.tab
 
 #----------
 # OPTIONAL: If you have mixed symbiont assemblages that are not equally distributed across samples (some samples have Symbiont vs others that have Symbiont2)
-cat Symbiont_seq2iso.tab Symbiont2_seq2iso.tab > Symbiont_Symbiont2_seq2iso.tab
-
-srun perl ~/bin/rename_seq2iso_by_orthogroup.pl Symbiont_Symbiont2_seq2iso.tab orthologs_unique.txt Symbiont_Symbiont2_seq2ortho.tab
-
-# Do the numbers line up?
-cut -f1 orthologs_unique.txt | sort | uniq | wc -l
-cut -f2 Symbiont_Symbiont2_seq2ortho.tab | sort | uniq | wc -l
-
-# Now combine the seq2ortho file with the host seq2iso file
-cat Host_seq2iso.tab Symbiont_Symbiont2_seq2ortho.tab > Host_Symbiont_Symbiont2_seq2iso.tab
+awk '/^>/ {gsub(/^>/, "", $1); print $1, $1}' Symbiont_Symbiont2_orthologs.fasta > Symbiont_Symbiont2_seq2iso.tab
 #----------
+
+# if working with multiple reference transcriptomes, concatenate the seq2iso tables
+cat Host_seq2iso.tab Sym_seq2iso.tab > Host_concat_seq2iso.tab
 
 # Counting sequences aligned to genes
 module load samtools-1.10-gcc-8.3.0-khgksad
@@ -253,6 +245,7 @@ cat allc.txt | perl -pe 's/\.trim\.sam\.counts//g'>allcounts.txt
 cat allc.txt | perl -pe 's/\.fastq\.sam\.counts//g'>allcounts.txt
 #----------
 
+$ Final gene counts!
 head allcounts.txt
 
 
