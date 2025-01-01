@@ -153,8 +153,10 @@ echo 'bowtie2-build Host.fasta,Symbiont.fasta,Symbiont2.fasta Host_concat' > btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch btb.slurm
 
+#----------
 # OPTIONAL: If you have mixed symbiont assemblages that are not equally distributed across samples (some samples have Symbiont vs others that have Symbiont2), it will create downstream differential expression due to presence/absence
 # One potential way around this is to run Orthofinder on both symbiont assemblies to identify shared genes (orthologs), use that output to rename a concatenated symbiont assembly by ortholog, filter out all other genes, then map to the ortholog assembly
+# Start with the R script orthofinder.R to generate Orthofinder results and a orthologs_unique.txt table (scp that to KoKo)
 # replace 'Symbiont' and 'Symbiont2' with your respective filenames
 cat Symbiont.fasta Symbiont2.fasta > Symbiont_Symbiont2.fasta
 
@@ -166,6 +168,7 @@ module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
 echo 'bowtie2-build Host.fasta,Symbiont_Symbiont2_orthologs.fasta Host_Symbiont_orthologs' > btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch btb.slurm
+#----------
 
 
 #------------------------------
@@ -187,7 +190,9 @@ mkdir unaligned
 tagseq_bowtie2_launcher_concat.py -g ~/db/Host_concat/Host_concat -f .trim -n maps --split -u un -a al --undir unaligned --launcher -e studivanms@gmail.com
 sbatch maps.slurm
 
+#----------
 ## OPTIONAL: For mapping paired-end reads, including to separate host/symbiont transcriptomes with bowtie2, follow the script bowtie2_pairedend_README.txt
+#----------
 
 
 #------------------------------
@@ -211,6 +216,21 @@ cp ~/annotate/Host_concat_seq2iso.tab ~/db/
 # if working with multiple reference transcriptomes, concatenate the seq2iso tables
 cat Host_seq2iso.tab Sym_seq2iso.tab > Host_concat_seq2iso.tab
 
+#----------
+# OPTIONAL: If you have mixed symbiont assemblages that are not equally distributed across samples (some samples have Symbiont vs others that have Symbiont2)
+cat Symbiont_seq2iso.tab Symbiont2_seq2iso.tab > Symbiont_Symbiont2_seq2iso.tab
+
+srun perl ~/bin/rename_seq2iso_by_orthogroup.pl Symbiont_Symbiont2_seq2iso.tab orthologs_unique.txt Symbiont_Symbiont2_seq2ortho.tab
+
+# Do the numbers line up?
+cut -f1 orthologs_unique.txt | sort | uniq | wc -l
+cut -f2 Symbiont_Symbiont2_seq2ortho.tab | sort | uniq | wc -l
+
+# Now combine the seq2ortho file with the host seq2iso file
+cat Host_seq2iso.tab Symbiont_Symbiont2_seq2ortho.tab > Host_Symbiont_Symbiont2_seq2iso.tab
+#----------
+
+# Counting sequences aligned to genes
 module load samtools-1.10-gcc-8.3.0-khgksad
 samcount_launch_bt2.pl '\.sam$' /home/mstudiva/db/Host_concat_seq2iso.tab > sc
 launcher_creator.py -j sc -n sc -q shortq7 -t 6:00:00 -e studivanms@gmail.com
@@ -228,8 +248,10 @@ head allc.txt
 # let's remove those annoying chains of extensions from sample names
 cat allc.txt | perl -pe 's/\.trim\.sam\.counts//g'>allcounts.txt
 
+#----------
 # OPTIONAL: for paired-end alignments
 cat allc.txt | perl -pe 's/\.fastq\.sam\.counts//g'>allcounts.txt
+#----------
 
 head allcounts.txt
 
