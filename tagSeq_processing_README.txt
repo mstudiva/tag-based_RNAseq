@@ -1,4 +1,4 @@
-## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version December 31, 2024
+## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 5, 2025
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
 ## BEFORE STARTING, replace, in this whole file:
@@ -133,6 +133,10 @@ mv trim.e####### trim.txt
 # to save time in case of issues, move the concatenated fastq files to backup directory
 mv *.fastq ../rawReads/
 
+# Rezips the raw fastq's for storage
+zipper.py -f fastq -a -9 --launcher -e studivanms@gmail.com
+sbatch --mem=200GB zip.slurm
+
 # to count the number of reads in trimmed samples
 echo "countreads_trim.pl > countreads_trim.txt" > count_trim
 launcher_creator.py -j count_trim -n count_trim -q shortq7 -t 6:00:00 -e studivanms@gmail.com
@@ -207,6 +211,13 @@ echo "countreads_align.pl > countreads_align.txt" > count_align
 launcher_creator.py -j count_align -n count_align -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch count_align.slurm
 
+# Some cleanup
+zipper.py -f trim -a -9 --launcher -e studivanms@gmail.com
+sbatch --mem=200GB zip.slurm
+
+rm *.al
+rm unaligned/*.un
+
 
 #------------------------------
 ## Generating read counts per gene
@@ -230,6 +241,10 @@ sbatch sc.slurm
 
 # double check you have the same number of files as samples
 ll *.counts | wc -l
+
+# Cleanup
+zipper.py -f sam -a -9 --launcher -e studivanms@gmail.com
+sbatch --mem=200GB zip.slurm
 
 # assembling them all into a single table:
 srun expression_compiler.pl *.counts > allc.txt
