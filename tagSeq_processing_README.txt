@@ -1,4 +1,4 @@
-## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version January 5, 2025
+## Tag-based RNA-seq (Tag-Seq) reads processing pipeline, version April 2, 2025
 # Created by Misha Matz (matz@utexas.edu), modified by Michael Studivan (studivanms@gmail.com) for use on the FAU KoKo HPC
 
 ## BEFORE STARTING, replace, in this whole file:
@@ -67,7 +67,7 @@ chmod +x downloadReads.sh
 launcher_creator.py -b 'srun downloadReads.sh' -n downloadReads -q shortq7 -t 06:00:00 -e studivanms@gmail.com
 sbatch --mem=200GB downloadReads.slurm
 
-# NOTE: This script has been stalling at the gunzip stage - run this if so:
+# NOTE: This script may stall at the gunzip stage - run this if so:
 for F in *.gz; do echo "gunzip $F" >> unzip; done
 launcher_creator.py -j unzip -n unzip -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch unzip.slurm
@@ -157,23 +157,6 @@ echo 'bowtie2-build Host.fasta,Symbiont.fasta,Symbiont2.fasta Host_concat' > btb
 launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
 sbatch btb.slurm
 
-#----------
-# OPTIONAL: If you have mixed symbiont assemblages that are not equally distributed across samples (some samples have Symbiont vs others that have Symbiont2), it will create downstream differential expression due to presence/absence
-# One potential way around this is to run Orthofinder on both symbiont assemblies to identify shared genes (orthologs), use that output to rename a concatenated symbiont assembly by ortholog, filter out all other genes, then map to the ortholog assembly
-# Start with the R script orthofinder.R to generate Orthofinder results and a orthologs_unique.txt table (scp that to KoKo)
-# replace 'Symbiont' and 'Symbiont2' with your respective filenames
-cat Symbiont.fasta Symbiont2.fasta > Symbiont_Symbiont2.fasta
-
-srun perl ~/bin/rename_fasta_by_orthogroup.pl orthologs_unique.txt Symbiont_Symbiont2.fasta Symbiont_Symbiont2_orthologs.fasta
-
-# now creating bowtie2 index
-module load bowtie2-2.3.5.1-gcc-8.3.0-63cvhw5
-# replace 'Host' and 'Symbiont' with your respective filenames
-echo 'bowtie2-build Host.fasta,Symbiont_Symbiont2_orthologs.fasta Host_Symbiont_orthologs' > btb
-launcher_creator.py -j btb -n btb -q shortq7 -t 6:00:00 -e studivanms@gmail.com
-sbatch btb.slurm
-#----------
-
 
 #------------------------------
 ## Mapping reads to host/symbiont transcriptomes with bowtie2
@@ -225,11 +208,6 @@ rm unaligned/*.un
 # NOTE: Must have a tab-delimited file giving correspondence between contigs in the transcriptome fasta file and genes
 cp ~/annotate/Host_concat_seq2iso.tab ~/db/
 
-#----------
-# OPTIONAL: If you have mixed symbiont assemblages that are not equally distributed across samples (some samples have Symbiont vs others that have Symbiont2)
-awk '/^>/ {gsub(/^>/, "", $1); print $1, $1}' Symbiont_Symbiont2_orthologs.fasta > Symbiont_Symbiont2_seq2iso.tab
-#----------
-
 # if working with multiple reference transcriptomes, concatenate the seq2iso tables
 cat Host_seq2iso.tab Sym_seq2iso.tab > Host_concat_seq2iso.tab
 
@@ -260,7 +238,7 @@ cat allc.txt | perl -pe 's/\.trim\.sam\.counts//g'>allcounts.txt
 cat allc.txt | perl -pe 's/\.fastq\.sam\.counts//g'>allcounts.txt
 #----------
 
-$ Final gene counts!
+# Final gene counts!
 head allcounts.txt
 
 
